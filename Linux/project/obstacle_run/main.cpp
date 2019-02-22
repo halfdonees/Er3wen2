@@ -179,6 +179,10 @@ int main(void) {
     /*
     end of initialize
     */
+//    Action::GetInstance()->Start(75);//stand
+    while(Action::GetInstance()->IsRunning()) usleep(5*1000);
+
+    sleep(3);
     Action::GetInstance()->Start(16);//stand
     while(Action::GetInstance()->IsRunning()) usleep(5*1000);
 
