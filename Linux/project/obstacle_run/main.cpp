@@ -112,6 +112,19 @@ float whiteArea(Mat &img){
 	return counter/area;
 }
 
+void drawColor(Mat& frame, Mat& inRanged, Scalar color){
+	for(int i=0;i<frame.rows;i++){
+		for(int j=0;j<frame.cols;j++){
+			if(inRanged.at<uchar>(i,j)){
+				frame.at<Vec3b>(i,j)[0] = color[0];
+				frame.at<Vec3b>(i,j)[1] = color[1];
+				frame.at<Vec3b>(i,j)[2] = color[2];
+			}
+		}
+	}
+
+}
+
 int main(void) {
     clock_t clk_begin,clk_end;
 	
@@ -198,6 +211,7 @@ int main(void) {
     VideoCapture video(0);
 
     Mat frame;
+    Mat colored_frame;
     Mat frame_hsv;
     Mat cam;
 
@@ -217,7 +231,7 @@ int main(void) {
 
     Mat lava;
 
-    Scalar blueLower = Scalar(100,70,70);
+    Scalar blueLower = Scalar(90,70,70);
     Scalar blueUpper = Scalar(110,255,255);
 
     Scalar yellowLower = Scalar(25,100,100);
@@ -261,16 +275,17 @@ int main(void) {
     float left_wall_area=0;
     float right_wall_area=0;
 
-    const float roi_left_height = 0.5;
-    const float roi_left_width = 0.3;
+    const float roi_left_height = 0.2;
+    const float roi_left_width = 0.1;
     const float roi_right_height = roi_left_height;
     const float roi_right_width = roi_left_width;
+    const float roi_side_margin = 0.3;
 
     float yellow_area=0;
 
 
     int state = WALKING;
-
+    int preState = READY;
     namedWindow("webcam",WINDOW_AUTOSIZE);
     namedWindow("hsv",WINDOW_AUTOSIZE);
     namedWindow("left",WINDOW_AUTOSIZE);
@@ -305,6 +320,9 @@ int main(void) {
 
     	flip(cam,cam,-1);
     	resizeCam(cam,frame,0.5);
+
+    	colored_frame = frame.clone();
+
     	cvtColor(frame,frame_hsv,COLOR_BGR2HSV);
 
     	imshow("hsv",frame_hsv);
@@ -328,11 +346,11 @@ int main(void) {
 
 	   	roi_near = maskBlue(Rect(0,maskBlue.rows*0.625,maskBlue.cols,maskBlue.rows*0.375));
 
-        roi_left = maskYellow(Rect(0,maskYellow.rows*(1-roi_left_height),
+        roi_left = maskYellow(Rect(0+maskYellow.cols*roi_side_margin,maskYellow.rows*(1-roi_left_height),
                         maskYellow.cols*roi_left_width,maskYellow.rows*roi_left_height));
         imshow("left",roi_left);
 
-        roi_right = maskYellow(Rect(maskYellow.cols*(1-roi_right_width ),maskYellow.rows*(1-roi_right_height),
+        roi_right = maskYellow(Rect(maskYellow.cols*(1-roi_right_width-roi_side_margin ),maskYellow.rows*(1-roi_right_height),
                         maskYellow.cols*roi_right_width,maskYellow.rows*roi_right_height));
         imshow("right",roi_right);
 
@@ -349,9 +367,10 @@ int main(void) {
 
 
 
+
     	imshow("near",roi_near);
 
-    	if(whiteArea(roi_near)>0.3) encounterWall = 1;
+    	if(whiteArea(roi_near)>0.2) encounterWall = 1;
     	if(whiteArea(roi_left)>0.03) encounterLeftBorder = 1;
     	if(whiteArea(roi_right)>0.03) encounterRightBorder = 1;
     	if(whiteArea(roi_red)>0.7) encounterGate = 1;
@@ -364,11 +383,17 @@ int main(void) {
 		dilate(maskBlue,maskBlue,erodeStruct);
 		dilate(maskBlue,maskBlue,erodeStruct);
 	   	erode(maskBlue,maskBlue,erodeStruct);
-    	imshow("mask",maskBlue);
+//    	imshow("mask",maskBlue);
 
 
-		dilate(maskBlue,lava,darwinStruct);
+        drawColor(colored_frame,maskRed,Scalar(0,0,255));
+        drawColor(colored_frame,maskBlue,Scalar(255,0,0));
+        drawColor(colored_frame,maskYellow,Scalar(0,255,255));
 
+        imshow("colored_frame",colored_frame);
+		dilate(maskBlue,maskBlue,darwinStruct);
+
+		lava = maskBlue(Rect(0,maskBlue.rows*0.3,maskBlue.cols,maskBlue.rows*0.7));
 	   	imshow("Lava",lava);
 
 
@@ -387,7 +412,7 @@ int main(void) {
         		case READY:
         			Walking::GetInstance()->Stop();
         			cout << "Take a break.\n";
-                    sleep(1);
+//                    sleep(1);
                     state = WALKING;
                     encounterWall = 0;
         			break;
@@ -432,9 +457,9 @@ int main(void) {
 
 	        		}
 	        		else{
-	        		walking_set(8,0,-2);
-	        		Walking::GetInstance()->Start();
-	        		break;
+		        			walking_set(8,0,0);
+	        			Walking::GetInstance()->Start();
+	        			break;
 	        		}
 
 	        	case LOOK_LEFT:
@@ -473,7 +498,10 @@ int main(void) {
 	        	case RIGHT_WALL:{
 	        		cout << "State: RIGHT_WALL\n";
 	        		cout << "turn left\n";
-	        		walking_set(-3,0,8);
+//	        		walking_set(-5,0,8);
+	        		walking_set(-5,20,3);
+	        		//-5,20,3
+
 	        		Walking::GetInstance()->Start();
 	        		int danger=0;
 	        		int hei=frame.rows/2;
@@ -484,6 +512,7 @@ int main(void) {
 
 	        		if(danger==0){
 	        			state=READY;
+	        			preState=RIGHT_WALL;
 	        		}
 
 	        		break;
@@ -492,7 +521,8 @@ int main(void) {
 
 	        		cout << "State: LEFT_WALL\n";
 	        		cout << "turn right\n";
-	        		walking_set(-3,0,-8);
+//	        		walking_set(-5,0,-8);
+	        		walking_set(-4,-20,-5);
 	        		Walking::GetInstance()->Start();
 	        		int danger=0;
 	        		int hei=frame.rows/2;
@@ -503,6 +533,7 @@ int main(void) {
 
 	        		if(danger==0){
 	        			state=READY;
+	        			preState=LEFT_WALL;
 	        		}
    
 	        		break;
@@ -511,7 +542,7 @@ int main(void) {
 	        	case LEFT_BORDER:{
 	        		cout << "State: LEFT_BORDER\n";
 	        		cout << "turn right.\n";
-	        		walking_time(-3,0,-15,5);
+	        		walking_time(-3,0,-15,2);
 	        		state = WALKING;
 	        		encounterLeftBorder=0;
 
@@ -520,7 +551,7 @@ int main(void) {
 	        	case RIGHT_BORDER:{
 	        		cout << "State: RIGHT_BORDER\n";
 	        		cout << "turn left.\n";
-	        		walking_time(-3,0,15,5);
+	        		walking_time(-3,0,15,2);
 	        		state = WALKING;
 	        		encounterRightBorder=0;
 	        		break;
