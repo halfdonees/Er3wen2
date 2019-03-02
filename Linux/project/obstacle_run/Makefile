@@ -32,7 +32,6 @@ $(OBJECTS2): $(PRO)
 
 clean:
 	rm -f *.a *.o $(TARGET) core *~ *.so *.lo
-	rm ../../../$(TARGET)
 
 libclean:
 	make -C ../../build clean

@@ -57,34 +57,11 @@ int main(void)
     change_current_dir();
 
     minIni* ini = new minIni(INI_FILE_PATH);
-    Image* rgb_output = new Image(Camera::WIDTH, Camera::HEIGHT, Image::RGB_PIXEL_SIZE);
 
     LinuxCamera::GetInstance()->Initialize(0);
     LinuxCamera::GetInstance()->SetCameraSettings(CameraSettings());    // set default
     LinuxCamera::GetInstance()->LoadINISettings(ini);                   // load from ini
 
-//    mjpg_streamer* streamer = new mjpg_streamer(Camera::WIDTH, Camera::HEIGHT);
-
-    ColorFinder* ball_finder = new ColorFinder();
-    ball_finder->LoadINISettings(ini);
-    httpd::ball_finder = ball_finder;
-
-    BallTracker tracker = BallTracker();
-    BallFollower follower = BallFollower();
-
-    ColorFinder* red_finder = new ColorFinder(0, 15, 45, 0, 0.3, 50.0);
-    red_finder->LoadINISettings(ini, "RED");
-    httpd::red_finder = red_finder;
-
-    ColorFinder* yellow_finder = new ColorFinder(60, 15, 45, 0, 0.3, 50.0);
-    yellow_finder->LoadINISettings(ini, "YELLOW");
-    httpd::yellow_finder = yellow_finder;
-
-    ColorFinder* blue_finder = new ColorFinder(225, 15, 45, 0, 0.3, 50.0);
-    blue_finder->LoadINISettings(ini, "BLUE");
-    httpd::blue_finder = blue_finder;
-
-    httpd::ini = ini;
 
     //////////////////// Framework Initialize ////////////////////////////
     if(MotionManager::GetInstance()->Initialize(&cm730) == false)
@@ -102,9 +79,10 @@ int main(void)
     MotionManager::GetInstance()->AddModule((MotionModule*)Action::GetInstance());
     MotionManager::GetInstance()->AddModule((MotionModule*)Head::GetInstance());
     MotionManager::GetInstance()->AddModule((MotionModule*)Walking::GetInstance());
-
+/*
     LinuxMotionTimer *motion_timer = new LinuxMotionTimer(MotionManager::GetInstance());
     motion_timer->Start();
+*/
     /////////////////////////////////////////////////////////////////////
     
     MotionManager::GetInstance()->LoadINISettings(ini);
@@ -154,8 +132,6 @@ int main(void)
 
         Point2D ball_pos, red_pos, yellow_pos, blue_pos;
 
-        LinuxCamera::GetInstance()->CaptureFrame();
-        memcpy(rgb_output->m_ImageData, LinuxCamera::GetInstance()->fbuffer->m_RGBFrame->m_ImageData, LinuxCamera::GetInstance()->fbuffer->m_RGBFrame->m_ImageSize);
 
         if(StatusCheck::m_is_started == 0)
             continue;
@@ -165,32 +141,7 @@ int main(void)
         case READY:
             break;
         case CUSTOM:
-            if(Action::GetInstance()->IsRunning() == 0)
-            {
-                Head::GetInstance()->m_Joint.SetEnableHeadOnly(true, true);
-                Walking::GetInstance()->m_Joint.SetEnableBodyWithoutHead(true, true);
-
-                follower.Process(tracker.ball_position);
-
-                if(follower.KickBall != 0)
-                {
-                    Head::GetInstance()->m_Joint.SetEnableHeadOnly(true, true);
-                    Action::GetInstance()->m_Joint.SetEnableBodyWithoutHead(true, true);
-
-                    if(follower.KickBall == -1)
-                    {
-                        Action::GetInstance()->Start(12);   // RIGHT KICK
-                        fprintf(stderr, "RightKick! \n");
-                    }
-                    else if(follower.KickBall == 1)
-                    {
-                        Action::GetInstance()->Start(13);   // LEFT KICK
-                        fprintf(stderr, "LeftKick! \n");
-                    }
-                }
-            }
             break;
-
         }
     }
 

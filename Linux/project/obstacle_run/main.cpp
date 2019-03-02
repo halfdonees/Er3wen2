@@ -1,11 +1,10 @@
 #include <iostream>
 #include <opencv/cv.h>
 #include <highgui.h>
-#include <stdio.h>
+
 #include <unistd.h>
 #include <vector>
 #include <limits.h>
-#include <string.h>
 #include <string>
 #include <libgen.h>
 #include <signal.h>
@@ -19,7 +18,6 @@
 #include "VisionMode.h"
 #include <sstream>
 
-#include <pthread.h>
 
 #ifdef MX28_1024
 #define MOTION_FILE_PATH    "../../../Data/motion_1024.bin"
@@ -38,10 +36,8 @@
 							video >> cam; \
 							video >> cam; \
 							video >> cam; \
-							video >> cam; \
-							video >> cam; \
-							video >> cam; \
-							video >> cam;
+							video >> cam; 
+							
 
 using namespace Robot;
 using namespace cv;
@@ -85,7 +81,7 @@ void walking_time(double X,double Y,double A,double time) {
     }
 }
 
-
+/*
 static void onMouse(int Event, int x, int y, int flags, void* param) {  
     Mat &img = *((Mat*)param);
 
@@ -98,7 +94,7 @@ static void onMouse(int Event, int x, int y, int flags, void* param) {
     }
 
 }
-
+*/
 float whiteArea(Mat &img){
 	int widthLimit = img.cols;
 	float counter =0;
@@ -231,16 +227,16 @@ int main(void) {
 
     Mat lava;
 
-    Scalar blueLower = Scalar(90,70,70);
-    Scalar blueUpper = Scalar(110,255,255);
+    const Scalar blueLower = Scalar(90,120,50);
+    const Scalar blueUpper = Scalar(120,255,255);
 
-    Scalar yellowLower = Scalar(25,100,100);
-    Scalar yellowUpper = Scalar(35,255,255);
+    const Scalar yellowLower = Scalar(25,100,100);
+    const Scalar yellowUpper = Scalar(35,255,255);
 
-    Scalar redLower1 = Scalar(0,50,50);
-    Scalar redUpper1 = Scalar(10,255,255);
-    Scalar redLower2 = Scalar(170,50,50);
-    Scalar redUpper2 = Scalar(180,255,255);
+    const Scalar redLower1 = Scalar(0,130,60);
+    const Scalar redUpper1 = Scalar(10,255,255);
+    const Scalar redLower2 = Scalar(170,130,60);
+    const Scalar redUpper2 = Scalar(180,255,255);
 
     Mat erodeStruct = getStructuringElement(MORPH_RECT, Size(5, 5));
     Mat darwinStruct = getStructuringElement(MORPH_RECT, Size(190, 190));
@@ -281,11 +277,11 @@ int main(void) {
     const float roi_right_width = roi_left_width;
     const float roi_side_margin = 0.3;
 
-    float yellow_area=0;
+//    float yellow_area=0;
 
 
     int state = WALKING;
-    int preState = READY;
+//    int preState = READY;
     namedWindow("webcam",WINDOW_AUTOSIZE);
     namedWindow("hsv",WINDOW_AUTOSIZE);
     namedWindow("left",WINDOW_AUTOSIZE);
@@ -307,16 +303,7 @@ int main(void) {
 
     	StatusCheck::Check(cm730);
 
-    	video >> cam;
-    	video >> cam;
-    	video >> cam;
-    	video >> cam;
-    	video >> cam;
-    	video >> cam;
-    	video >> cam;
-    	video >> cam;
-    	video >> cam;
-    	video >> cam;
+        VIDEOSTREAM
 
     	flip(cam,cam,-1);
     	resizeCam(cam,frame,0.5);
@@ -326,8 +313,6 @@ int main(void) {
     	cvtColor(frame,frame_hsv,COLOR_BGR2HSV);
 
     	imshow("hsv",frame_hsv);
-    	rectangle(frame,Point(frame.cols*0.48,frame.rows*0.08),Point(frame.cols*0.52,frame.rows*0.15),Scalar(255,255,255),1);
-    	imshow("webcam",frame);
 
 
     	inRange(frame_hsv,blueLower,blueUpper,maskBlue);
@@ -344,7 +329,7 @@ int main(void) {
 
 
 
-	   	roi_near = maskBlue(Rect(0,maskBlue.rows*0.625,maskBlue.cols,maskBlue.rows*0.375));
+	   	roi_near = maskBlue(Rect(0,maskBlue.rows*(1- roi_near_height ),maskBlue.cols,maskBlue.rows*roi_near_height));
 
         roi_left = maskYellow(Rect(0+maskYellow.cols*roi_side_margin,maskYellow.rows*(1-roi_left_height),
                         maskYellow.cols*roi_left_width,maskYellow.rows*roi_left_height));
@@ -359,7 +344,10 @@ int main(void) {
 
 */
 
-        roi_red = maskRed(Rect(maskRed.cols*0.48,maskRed.rows*0.08,maskRed.rows*0.08,maskRed.cols*0.06));
+        roi_red = maskRed(Rect(maskRed.cols*0.485,maskRed.rows*0.05,maskRed.cols*0.03,maskRed.rows*0.04));
+        rectangle(frame,Point(frame.cols*0.485,frame.rows*0.05),Point(frame.cols*0.515,frame.rows*0.08),Scalar(255,255,255),1);
+
+        imshow("webcam",frame);
 
         imshow("red",roi_red);
         imshow("red_mask",maskRed);
@@ -424,7 +412,6 @@ int main(void) {
 	        		if(encounterGate==1){
 	        			cout << "stop.\n";
 	        			Walking::GetInstance()->Stop();
-	        			sleep(1);
 	        			state = GATE;
 	        		}
 
@@ -449,7 +436,7 @@ int main(void) {
 	        			cout << "stop\n";
 	        			Walking::GetInstance()->Stop();
                         sleep(1);
-	        			Head::GetInstance()->MoveByAngle(25,15);
+	        			Head::GetInstance()->MoveByAngle(35,15);
                         sleep(1);
 
 	        			state = LOOK_LEFT;
@@ -465,11 +452,11 @@ int main(void) {
 	        	case LOOK_LEFT:
 	        		cout << "State: LOOK_LEFT";
 
-	        		imshow("Left",frame);
+//	        		imshow("Left",frame);
 	        		left_wall_area = whiteArea(maskBlue);
 	        		cout << left_wall_area << endl;
 
-	        		Head::GetInstance()->MoveByAngle(-25,15);
+	        		Head::GetInstance()->MoveByAngle(-35,15);
 	        		sleep(1);
 
 	        		if(encounterLeftBorder==1)	state = LEFT_BORDER;
@@ -479,7 +466,7 @@ int main(void) {
 	        		
 	        	case LOOK_RIGHT:
 	        		cout << "State: LOOK_ROGHT";
-	        		imshow("Right",frame);
+//	        		imshow("Right",frame);
 
 	        		right_wall_area = whiteArea(maskBlue);
 	        		cout << right_wall_area << endl;
@@ -512,7 +499,7 @@ int main(void) {
 
 	        		if(danger==0){
 	        			state=READY;
-	        			preState=RIGHT_WALL;
+//	        			preState=RIGHT_WALL;
 	        		}
 
 	        		break;
@@ -522,7 +509,7 @@ int main(void) {
 	        		cout << "State: LEFT_WALL\n";
 	        		cout << "turn right\n";
 //	        		walking_set(-5,0,-8);
-	        		walking_set(-4,-20,-5);
+	        		walking_set(-4,-16,-5);
 	        		Walking::GetInstance()->Start();
 	        		int danger=0;
 	        		int hei=frame.rows/2;
@@ -533,7 +520,7 @@ int main(void) {
 
 	        		if(danger==0){
 	        			state=READY;
-	        			preState=LEFT_WALL;
+//	        			preState=LEFT_WALL;
 	        		}
    
 	        		break;
@@ -559,6 +546,30 @@ int main(void) {
 
 	        	case GATE:{
 	        		cout << "State: GATE\n";
+	        		Walking::GetInstance()->Stop();
+	        		sleep(1);
+	        		walking_time(-10,0,0,6);
+                    sleep(1);
+	       		    Action::GetInstance()->m_Joint.SetEnableBody(true, true);
+				    MotionManager::GetInstance()->SetEnable(true);
+
+				    Action::GetInstance()->Start(61);
+			        while(Action::GetInstance()->IsRunning()) usleep(5*1000);
+
+                    Action::GetInstance()->Start(63);
+                    while(Action::GetInstance()->IsRunning()) usleep(5*1000);
+                    Action::GetInstance()->Start(63);
+                    while(Action::GetInstance()->IsRunning()) usleep(5*1000);
+
+                    Action::GetInstance()->Start(64);
+                    while(Action::GetInstance()->IsRunning()) usleep(5*1000);
+
+
+                    Walking::GetInstance()->m_Joint.SetEnableBodyWithoutHead(true,true);
+                    while(Action::GetInstance()->IsRunning()) usleep(8*1000);
+
+                    state = WALKING;
+
 	        	}
 
 
