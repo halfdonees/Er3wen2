@@ -1,0 +1,283 @@
+/*
+ * main.cpp
+ *
+ *  Created on: 2011. 1. 4.
+ *      Author: robotis
+ */
+
+#include <stdio.h>
+#include <unistd.h>
+#include <limits.h>
+#include <string.h>
+#include <libgen.h>
+#include <signal.h>
+
+
+#include "Walking.h"
+#include "MotionStatus.h"
+#include "mjpg_streamer.h"
+#include "LinuxDARwIn.h"
+#include "Head2.h"
+#include "StatusCheck.h"
+#include "VisionMode.h"
+
+#ifdef MX28_1024
+#define MOTION_FILE_PATH    "../../../Data/motion_1024.bin"
+#else
+#define MOTION_FILE_PATH    "../../../Data/motion_4096.bin"
+#endif
+
+#define INI_FILE_PATH       "../../../Data/config.ini"
+#define SCRIPT_FILE_PATH    "script.asc"
+
+#define U2D_DEV_NAME0       "/dev/ttyUSB0"
+#define U2D_DEV_NAME1       "/dev/ttyUSB1"
+
+LinuxCM730 linux_cm730(U2D_DEV_NAME0);
+CM730 cm730(&linux_cm730);
+
+void change_current_dir()
+{
+    char exepath[1024] = {0};
+    if(readlink("/proc/self/exe", exepath, sizeof(exepath)) != -1)
+    {
+        if(chdir(dirname(exepath)))
+            fprintf(stderr, "chdir error!! \n");
+    }
+}
+
+void sighandler(int sig)
+{
+    exit(0);
+}
+
+int main(void)
+{    
+ 
+
+    const double visionMaxLim=0.10,visionTwoMeter=0.01,sl_factor = 0.002;
+    bool BeginBack=false;
+    bool WalkingBack=true;    
+    int offset=0;
+   // float  kp=0.3,kpy=0.5; 
+    float kp=0.4,kpy=0.4,kpx=0.1; 
+    float error=0;
+    float turnx=0;
+    float turn=0,turny=0;    
+    
+    int a=0,count=0,count40degree=0;
+    //double turnx=0,turn=0,turny=0;    
+    //double pan = MotionStatus::m_CurrentJoints.GetAngle(JointData::ID_HEAD_PAN);  //pan: middle=0 right=negative left=positive
+    //Head::GetInstance()->follower.pan*Kp ;
+
+    signal(SIGABRT, &sighandler);
+    signal(SIGTERM, &sighandler);
+    signal(SIGQUIT, &sighandler);
+    signal(SIGINT, &sighandler);
+
+    change_current_dir();
+
+    minIni* ini = new minIni(INI_FILE_PATH);
+    Image* rgb_output = new Image(Camera::WIDTH, Camera::HEIGHT, Image::RGB_PIXEL_SIZE);
+
+    LinuxCamera::GetInstance()->Initialize(0);
+    LinuxCamera::GetInstance()->SetCameraSettings(CameraSettings());    // set default
+    LinuxCamera::GetInstance()->LoadINISettings(ini);                   // load from ini
+
+    mjpg_streamer* streamer = new mjpg_streamer(Camera::WIDTH, Camera::HEIGHT);
+
+    ColorFinder* ball_finder = new ColorFinder();
+    ball_finder->LoadINISettings(ini);
+    httpd::ball_finder = ball_finder;
+
+    BallTracker tracker = BallTracker();
+    BallFollower follower = BallFollower();  //tracker類別由balltracker類別組成. 另follwer類別由BallFollower產生.
+
+    //////////////////////Color Finder////////////////////////////////////
+    ColorFinder* red_finder = new ColorFinder(0, 15, 45, 0, 0.3, 50.0);
+    red_finder->LoadINISettings(ini, "RED");
+    httpd::red_finder = red_finder;
+
+    ColorFinder* yellow_finder = new ColorFinder(60, 15, 45, 0, 0.3, 50.0);
+    yellow_finder->LoadINISettings(ini, "YELLOW");
+    httpd::yellow_finder = yellow_finder;
+
+    ColorFinder* blue_finder = new ColorFinder(130, 30, 45, 0, 0.3, 50.0);
+    blue_finder->LoadINISettings(ini, "BLUE");
+    httpd::blue_finder = blue_finder;
+
+    httpd::ini = ini;
+
+    //////////////////// Framework Initialize ////////////////////////////
+    if(MotionManager::GetInstance()->Initialize(&cm730) == false)       //控制埠位初始化並開啟, Dynamixel正式啟動.
+    {
+        linux_cm730.SetPortName(U2D_DEV_NAME1);
+        if(MotionManager::GetInstance()->Initialize(&cm730) == false)
+        {
+            printf("Fail to initialize Motion Manager!\n");
+            return 0;
+        }
+    }
+
+    Walking::GetInstance()->LoadINISettings(ini);
+
+    MotionManager::GetInstance()->AddModule((MotionModule*)Action::GetInstance());      //MotionManager作初始化並對action類別註冊.
+    MotionManager::GetInstance()->AddModule((MotionModule*)Head::GetInstance());        //MotionManager頭部跟踪註冊頭部及步行模組
+    MotionManager::GetInstance()->AddModule((MotionModule*)Walking::GetInstance());     //MotionManager註冊步行模組
+
+    LinuxMotionTimer *motion_timer = new LinuxMotionTimer(MotionManager::GetInstance());
+    motion_timer->Start();
+    /////////////////////////////////////////////////////////////////////
+
+    MotionManager::GetInstance()->LoadINISettings(ini);
+
+    int firm_ver = 0;
+    if(cm730.ReadByte(JointData::ID_HEAD_PAN, MX28::P_VERSION, &firm_ver, 0)  != CM730::SUCCESS)
+    {
+        fprintf(stderr, "Can't read firmware version from Dynamixel ID %d!! \n\n", JointData::ID_HEAD_PAN);
+        exit(0);
+    }
+
+    if(0 < firm_ver && firm_ver < 27)
+    {
+#ifdef MX28_1024
+        Action::GetInstance()->LoadFile(MOTION_FILE_PATH);
+#else
+        fprintf(stderr, "MX-28's firmware is not support 4096 resolution!! \n");
+        fprintf(stderr, "Upgrade MX-28's firmware to version 27(0x1B) or higher.\n\n");
+        exit(0);
+#endif
+    }
+    else if(27 <= firm_ver)
+    {
+
+#ifdef MX28_1024
+        fprintf(stderr, "MX-28's firmware is not support 1024 resolution!! \n");
+        fprintf(stderr, "Remove '#define MX28_1024' from 'MX28.h' file and rebuild.\n\n");
+        exit(0);
+#else
+        Action::GetInstance()->LoadFile((char*)MOTION_FILE_PATH);
+#endif
+    }
+    else
+        exit(0);
+    Action::GetInstance()->m_Joint.SetEnableBody(true, true);
+    MotionManager::GetInstance()->SetEnable(true);
+
+    cm730.WriteByte(CM730::P_LED_PANNEL, 0x01|0x02|0x04, NULL);
+
+    LinuxActionScript::PlayMP3("../../../Data/mp3/Demonstration ready mode.mp3");
+   // Action::GetInstance()->Start(22);  //stand and raise head
+   // while(Action::GetInstance()->IsRunning()) usleep(8*1000);
+   
+    while(1)
+    {
+        StatusCheck::Check(cm730);
+
+        Point2D red_pos;
+
+        LinuxCamera::GetInstance()->CaptureFrame();
+        memcpy(rgb_output->m_ImageData, LinuxCamera::GetInstance()->fbuffer->m_RGBFrame->m_ImageData, LinuxCamera::GetInstance()->fbuffer->m_RGBFrame->m_ImageSize);
+
+
+        unsigned char r, g, b;
+        int nTargetPixels=0;                                        //When to walk back
+	red_pos = red_finder->GetPosition(LinuxCamera::GetInstance()->fbuffer->m_HSVFrame);
+
+        
+        for(int i = 0; i < rgb_output->m_NumberOfPixels; i++)
+        {
+            r = 0;
+            g = 0;
+            b = 0;
+            if(red_finder->m_result->m_ImageData[i] == 1)
+            {
+                r = 255;
+                g = 125;
+                b = 0;
+                nTargetPixels+=1;
+            }                                                                        //orange
+                                                           //purple
+            if(r > 0 || g > 0 || b > 0)
+            {
+                rgb_output->m_ImageData[i * rgb_output->m_PixelSize + 0] = r;
+                rgb_output->m_ImageData[i * rgb_output->m_PixelSize + 1] = g;
+                rgb_output->m_ImageData[i * rgb_output->m_PixelSize + 2] = b;
+            }
+        }
+
+        //Head::GetInstance()->MoveTracking(red_pos);
+	
+	Head::GetInstance()->m_Joint.SetEnableHeadOnly(true, true);
+
+	 
+        tracker.Process(red_pos); //Head will tracking red object                   #tracker=>head moving
+        //follower.Process(tracker.ball_position);  //type(ball_position)=point_2D  #follower=>walking
+	
+	
+        streamer->send_image(rgb_output);                                         //output to Firefox
+	printf("%d\t",nTargetPixels);
+
+	int slow_down = 0;
+	if(nTargetPixels> (rgb_output->m_NumberOfPixels)*visionTwoMeter )
+	slow_down = nTargetPixels * sl_factor;
+
+        if(StatusCheck::m_is_started == 0)
+            continue;
+
+        if(!BeginBack&&nTargetPixels>=(rgb_output->m_NumberOfPixels)*visionMaxLim)
+            BeginBack=true;
+        if(Action::GetInstance()->IsRunning() == 0)
+        {
+         	Head::GetInstance()->m_Joint.SetEnableHeadOnly(true, true);
+         	Walking::GetInstance()->m_Joint.SetEnableBodyWithoutHead(true, true);
+		if(!BeginBack)
+		{
+
+
+                	turn=(MotionStatus::m_CurrentJoints.GetAngle(JointData::ID_HEAD_PAN))*kp;
+                	turny=(MotionStatus::m_CurrentJoints.GetAngle(JointData::ID_HEAD_PAN))*kpy;
+			turnx=(MotionStatus::m_CurrentJoints.GetAngle(JointData::ID_HEAD_PAN))*kpx;
+
+		       
+                       Walking::GetInstance()->X_MOVE_AMPLITUDE=20-slow_down;//8-turnx;
+                       Walking::GetInstance()->Y_MOVE_AMPLITUDE=turny-3;
+                       Walking::GetInstance()->A_MOVE_AMPLITUDE=turn;
+			Walking::GetInstance()->Start();
+   			printf("%d\n",20-slow_down);
+                          
+                       //printf("turn is %f\n",turn);           
+                       //printf("Y is %f , A is %f\n",turny,turn);
+		}
+		
+		else
+		{
+			if (WalkingBack)
+                	{
+
+				WalkingBack=false;
+				
+                	}
+	
+			turn=(MotionStatus::m_CurrentJoints.GetAngle(JointData::ID_HEAD_PAN))*kp;
+                        turny=(MotionStatus::m_CurrentJoints.GetAngle(JointData::ID_HEAD_PAN))*kpy;
+			turnx=(MotionStatus::m_CurrentJoints.GetAngle(JointData::ID_HEAD_PAN))*kpx;
+
+
+                       Walking::GetInstance()->X_MOVE_AMPLITUDE=-10;//+slow_down/2;
+                       Walking::GetInstance()->Y_MOVE_AMPLITUDE=turny-3;
+                       Walking::GetInstance()->A_MOVE_AMPLITUDE=turn  ;
+			Walking::GetInstance()->Start();
+                       
+                      //printf("%d\n", -10+slow_down);
+
+		}
+
+
+        }
+
+
+    }
+
+    return 0;
+}

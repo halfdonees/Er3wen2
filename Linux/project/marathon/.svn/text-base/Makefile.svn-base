@@ -7,27 +7,18 @@
 #
 ###############################################################
 
-TARGET = obstacle_run
-PRO = main.cpp
-LIB = `pkg-config --cflags opencv` `pkg-config --libs opencv`
-OFLAGS += -lm -ggdb
+TARGET = demo
 
+INCLUDE_DIRS = -I../../include -I../../../Framework/include
 
-INCLUDE_DIRS = -I../../include -I../../../Framework/include 
-
-
-CXX = g++ 
-CXXFLAGS += -O2 -DLINUX -Wall $(INCLUDE_DIRS) $(LIB)
+CXX = g++
+CXXFLAGS += -O2 -DLINUX -Wall $(INCLUDE_DIRS)
 #CXXFLAGS += -O2 -DDEBUG -DLINUX -Wall $(INCLUDE_DIRS)
-LFLAGS += -lpthread -ljpeg -lrt 
+LFLAGS += -lpthread -ljpeg -lrt
 
-OBJECTS = VisionMode.o StatusCheck.o NearPixel.o main.o $(OBJECTS2)
+OBJECTS = VisionMode.o StatusCheck.o main.o
 
 all: $(TARGET)
-
-
-$(OBJECTS2): $(PRO)
-	@$(CXX) -c $(PRO) $(OFLAGS) $(LIB)
 
 clean:
 	rm -f *.a *.o $(TARGET) core *~ *.so *.lo
@@ -41,7 +32,7 @@ darwin.a:
 	make -C ../../build
 
 $(TARGET): darwin.a $(OBJECTS)
-	$(CXX) $(CFLAGS) $(OBJECTS) ../../lib/darwin.a -o $(TARGET) $(OFLAGS) $(LFLAGS)  $(LIB)
+	$(CXX) $(CFLAGS) $(LFLAGS) $(OBJECTS) ../../lib/darwin.a -o $(TARGET)
 	chmod 755 $(TARGET)
 
 # useful to make a backup "make tgz"

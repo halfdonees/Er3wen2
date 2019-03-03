@@ -34,7 +34,10 @@
 #define VIDEOSTREAM         video >> cam; \
 							video >> cam; \
 							video >> cam; \
-							video >> cam; \
+                            video >> cam; \
+                            video >> cam; \
+                            video >> cam; \
+                            video >> cam; \
 							video >> cam; \
 							video >> cam; 
 							
@@ -227,11 +230,11 @@ int main(void) {
 
     Mat lava;
 
-    const Scalar blueLower = Scalar(90,120,50);
+    const Scalar blueLower = Scalar(90,80,40);
     const Scalar blueUpper = Scalar(120,255,255);
 
-    const Scalar yellowLower = Scalar(25,100,100);
-    const Scalar yellowUpper = Scalar(35,255,255);
+    const Scalar yellowLower = Scalar(20,80,80);
+    const Scalar yellowUpper = Scalar(40,255,255);
 
     const Scalar redLower1 = Scalar(0,130,60);
     const Scalar redUpper1 = Scalar(10,255,255);
@@ -252,7 +255,8 @@ int main(void) {
     	LOOK_LEFT,
     	LOOK_RIGHT,
     	GATE_SHIFT_LEFT,
-    	GATE_SHIFT_RIGHT
+    	GATE_SHIFT_RIGHT,
+        YELLOW
     };
 
     int encounterWall=0;
@@ -265,6 +269,10 @@ int main(void) {
     Mat roi_left;
     Mat roi_right;
     Mat roi_red;
+    Mat roi_near_yellow;
+
+    const float roi_near_yellow_height = 0.2;
+    const float roi_near_yellow_width = 0.5;
 
 
     const float roi_near_height = 0.375;
@@ -279,6 +287,7 @@ int main(void) {
 
 //    float yellow_area=0;
 
+    int encounterYellow = 0;
 
     int state = WALKING;
 //    int preState = READY;
@@ -339,6 +348,11 @@ int main(void) {
                         maskYellow.cols*roi_right_width,maskYellow.rows*roi_right_height));
         imshow("right",roi_right);
 
+        roi_near_yellow = maskYellow(Rect(maskYellow.cols*(1-roi_near_yellow_width)/2,maskYellow.rows * (1- roi_near_yellow_height),
+                                        maskYellow.cols*roi_near_yellow_width,maskYellow.rows*roi_near_yellow_height));
+        imshow("yellowNear",roi_near_yellow);
+
+
 /*
     	rectangle(frame,Point(frame.cols*0.48,frame.rows*0.08),Point(frame.cols*0.52,frame.rows*0.15),Scalar(255,255,255),1);
 
@@ -359,10 +373,16 @@ int main(void) {
     	imshow("near",roi_near);
 
     	if(whiteArea(roi_near)>0.2) encounterWall = 1;
+        else encounterWall = 0;
+
     	if(whiteArea(roi_left)>0.03) encounterLeftBorder = 1;
+        else encounterLeftBorder = 0;
     	if(whiteArea(roi_right)>0.03) encounterRightBorder = 1;
-    	if(whiteArea(roi_red)>0.7) encounterGate = 1;
-    	else encounterGate=0;
+        else encounterRightBorder = 0;
+//    	if(whiteArea(roi_red)>0.7) encounterGate = 1;
+ //       else encounterGate = 0;
+        if(whiteArea(roi_near_yellow)>0.2) encounterYellow = 1;
+    	else encounterYellow=0;
 
     	cout << "Gate: " << encounterGate << endl;
 
@@ -416,18 +436,12 @@ int main(void) {
 	        		}
 
 	        		if(encounterRightBorder==1){
-	        			cout << "stop.\n";
-	        			Walking::GetInstance()->Stop();
-	        			sleep(1);
 	        			state = RIGHT_BORDER;
 	        			break;
 	        		}
 
 
 	        		else if(encounterLeftBorder==1){
-	        			cout << "stop.\n";
-	        			Walking::GetInstance()->Stop();
-	        			sleep(1);
 	        			state = LEFT_BORDER;
 	        			break;
 	        		}
@@ -443,8 +457,15 @@ int main(void) {
 	        			break;
 
 	        		}
+                    else if(encounterYellow==1){
+                        cout << "Stop";
+                        Walking::GetInstance()->Stop();
+                        sleep(1);
+
+                        state = YELLOW;
+                    }
 	        		else{
-		        			walking_set(8,0,0);
+		        		walking_set(10,0,-1);
 	        			Walking::GetInstance()->Start();
 	        			break;
 	        		}
@@ -529,7 +550,9 @@ int main(void) {
 	        	case LEFT_BORDER:{
 	        		cout << "State: LEFT_BORDER\n";
 	        		cout << "turn right.\n";
-	        		walking_time(-3,0,-15,2);
+                    walking_time(-4,-16,-15,1);
+//                    walking_time(-3,0,-15,1);
+
 	        		state = WALKING;
 	        		encounterLeftBorder=0;
 
@@ -538,7 +561,9 @@ int main(void) {
 	        	case RIGHT_BORDER:{
 	        		cout << "State: RIGHT_BORDER\n";
 	        		cout << "turn left.\n";
-	        		walking_time(-3,0,15,2);
+                    walking_time(-5,20,15,1);
+
+//	        		walking_time(-3,0,15,1);
 	        		state = WALKING;
 	        		encounterRightBorder=0;
 	        		break;
@@ -569,8 +594,18 @@ int main(void) {
                     while(Action::GetInstance()->IsRunning()) usleep(8*1000);
 
                     state = WALKING;
-
 	        	}
+
+                case YELLOW:{
+                    cout << "State: YELLOW\n";
+                    walking_set(-4,-16,-5);
+                    Walking::GetInstance()->Start();
+                    if(whiteArea(roi_near_yellow)<0.1){
+                        state = WALKING;
+                        break;
+                    }
+                    break;
+                }
 
 
 
