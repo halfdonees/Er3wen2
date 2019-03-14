@@ -27,6 +27,8 @@
 #include <sstream>
 //#include <aruco.h>
 
+#include "gyro.h"
+
 #ifdef MX28_1024
 #define MOTION_FILE_PATH    "../../../Data/motion_1024.bin"
 #else
@@ -62,7 +64,6 @@ void sighandler(int sig)
 }
 int Change(int x, int y);
 void drawAllLinesP(Mat &input, const std::vector<Vec4i> &lines);
-
 
 float distanceToLine(int x1,int y1,int x2,int y2,int x0,int y0) {
     float e = fabs((y2 - y1) * x0 - (x2 - x1) * y0 + x2 * y1 - y2 * x1);
@@ -185,7 +186,7 @@ vector<Vec4i> mergeLines(vector<Vec4i> linesP , int dist) {
     return olines;
 }
 
-vector<Vec4i> frameProcess(Mat &input,string name) {// blur, canny, Hough, merge ,show
+vector<Vec4i> mergedLinesInImage(Mat &input,string name) {// blur, canny, Hough, merge ,show
     Mat edge;
     //applyGaussianBlur(input,input,5);
     applyCannyEdge(input, edge, 80,160);
@@ -365,7 +366,7 @@ int main(void)
     Mat top_view;
    	Point2f srcQua[4];
 	Point2f top_viewQua[4];
-	int scale = 74;
+	int scale = 71;
 
     top_view = Mat::zeros(cam.rows * 1, cam.cols * 0.5, frame.type());
 
@@ -385,6 +386,8 @@ int main(void)
     while(1)
     { 
     	StatusCheck::Check(cm730);
+
+//        printGYRO(&cm730);
 
   
 	    video >> cam;
@@ -431,31 +434,35 @@ int main(void)
             }
         }
 
-        cvtColor(hsv_top,h_top,CV_BGR2GRAY);
+//        cvtColor(hsv_top,h_top,CV_BGR2GRAY);
         Mat top_gray;
         applyGaussianBlur(top_view,top_view,5);
-        Canny(top_view,top_gray,120,200);
+        Canny(top_view,top_gray,2,120);
         imshow("top_gray",top_gray);
         //cout << "test2\n";
+        imshow("top_hue",h_top);
 
         
        	erode(frame,frame,erodeStruct,Point(-1,-1));
 
        	cvtColor(frame,frame,CV_BGR2HSV);
 
-        roi1 = top_gray(Rect(h_top.cols*0.2,h_top.rows*0.65,h_top.cols*0.6,h_top.rows *0.35));
-        rectangle(top_view, Point(top_view.cols*0.2,top_view.rows*0.65), 
-        					Point(top_view.cols*0.8,top_view.rows*1-1), Scalar(255,0,0), 3); // draw near
+        roi1 = top_gray(Rect(h_top.cols*0.15,h_top.rows*0.6,h_top.cols*0.7,h_top.rows *0.4));
+//        Canny(h_top,h_top,120,200);
+
+//        roi1 = h_top(Rect(h_top.cols*0.15,h_top.rows*0.65,h_top.cols*0.7,h_top.rows *0.35));
+
+        rectangle(top_view, Point(top_view.cols*0.15,top_view.rows*0.6), 
+        					Point(top_view.cols*0.85,top_view.rows*1-1), Scalar(255,0,0), 3); // draw near
 
        	//cout << "test3\n";
 
-        imshow("asdf",h_top);
         //cout << "test3.1\n";
 
-        linesM = frameProcess(roi1,"roi_near");
+        linesM = mergedLinesInImage(roi1,"roi_near");
         //cout << "test3.2\n";
 
-        adjustLines(linesM,hsv_top.cols*0.2,hsv_top.rows*0.65);
+        adjustLines(linesM,hsv_top.cols*0.15,hsv_top.rows*0.6);
 
         if(linesM.size()!=0){
         	int x1 = linesM[0][0];
@@ -476,20 +483,20 @@ int main(void)
 
                 if((theta >= 0.25)){
                 	cout << "The angle is too big\n";
-                	A = 10*Y;
+                	A = 5*Y;
                 	X = 0;
 
                 }
 
                 else if(theta <= -0.25){
                 	cout << "The angle is too big\n";
-                	A = 10*Y;
+                	A = 5*Y;
                 	X = 0;
                 }
 
 
               	else{
-	                A = 25 * theta;
+	                A = 20 * theta;
 	                //cout << "A: " << A << endl;
 	               	A += (0.2*Y);	
 	               	A += -3;

@@ -427,6 +427,8 @@ int main(void) {
 
 
 	        	case WALKING:
+                                    Head::GetInstance()->MoveByAngle(0,15);
+
 	        		cout << "State: WALKING Straight\n";
 
 	        		if(encounterGate==1){
@@ -465,7 +467,7 @@ int main(void) {
                         state = YELLOW;
                     }
 	        		else{
-		        		walking_set(10,0,-1);
+		        		walking_set(10,0,0);
 	        			Walking::GetInstance()->Start();
 	        			break;
 	        		}

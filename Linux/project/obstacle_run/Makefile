@@ -16,7 +16,7 @@ OFLAGS += -lm -ggdb
 INCLUDE_DIRS = -I../../include -I../../../Framework/include 
 
 
-CXX = g++ 
+CXX = g++ -std=c++98
 CXXFLAGS += -O2 -DLINUX -Wall $(INCLUDE_DIRS) $(LIB)
 #CXXFLAGS += -O2 -DDEBUG -DLINUX -Wall $(INCLUDE_DIRS)
 LFLAGS += -lpthread -ljpeg -lrt 
